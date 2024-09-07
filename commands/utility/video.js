@@ -32,26 +32,34 @@ module.exports = {
 
         // download video from link (shell execute yt-dlp)
         exec(`yt-dlp -o ${outputFilePath} ${videoUrl}`, async (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error downloading video: ${error.message}`);
-                await interaction.reply('There was an error downloading the video.');
-                return;
+            try {
+                if (error) {
+                    console.error(`Error downloading video: ${error.message}`);
+                    await interaction.reply('There was an error downloading the video.');
+                    return;
+                }
+
+                if (stderr) {
+                    console.error(`yt-dlp stderr: ${stderr}`);
+                }
+
+                console.log(`yt-dlp stdout: ${stdout}`);
+
+                // send video to channel
+                await interaction.followUp({
+                    content: `here is your video`,
+                    files: [outputFilePath]
+                });
+
+                // Clean up the downloaded file
+                fs.unlinkSync(outputFilePath);
+            } catch (err) {
+                console.error(`Unexpected error: ${err.message}`);
+                await interaction.followUp('An unexpected error occurred.');
+                if (fs.existsSync(outputFilePath)) {
+                    fs.unlinkSync(outputFilePath);
+                }
             }
-
-            if (stderr) {
-                console.error(`yt-dlp stderr: ${stderr}`);
-            }
-
-            console.log(`yt-dlp stdout: ${stdout}`);
-
-            // send video to channel
-            await interaction.followUp({
-                content: `here is your video`,
-                files: [outputFilePath]
-            });
-
-            // Clean up the downloaded file
-            fs.unlinkSync(outputFilePath);
         });
     },
 };
