@@ -14,6 +14,9 @@ module.exports = {
         const videoUrl = interaction.options.getString('url');
         const outputFilePath = 'downloaded_video.mp4';
 
+        // Defer the reply to give more time for processing
+        await interaction.deferReply();
+
         // download video from link (shell execute yt-dlp)
         exec(`yt-dlp -o ${outputFilePath} ${videoUrl}`, async (error, stdout, stderr) => {
             if (error) {
@@ -29,8 +32,8 @@ module.exports = {
             console.log(`yt-dlp stdout: ${stdout}`);
 
             // send video to channel
-            await interaction.reply({
-                content: `Here is your video from ${videoUrl}`,
+            await interaction.followUp({
+                content: `here is your video`,
                 files: [outputFilePath]
             });
 
