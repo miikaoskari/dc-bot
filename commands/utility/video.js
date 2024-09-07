@@ -5,7 +5,11 @@ const fs = require('fs');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('video')
-        .setDescription('send link to video and send content to channel'),
+        .setDescription('send link to video and send content to channel')
+        .addStringOption(option => 
+            option.setName('url')
+                .setDescription('url of the video to download')
+                .setRequired(true)),
     async execute(interaction) {
         const videoUrl = interaction.options.getString('url');
         const outputFilePath = 'downloaded_video.mp4';
