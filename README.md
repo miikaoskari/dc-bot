@@ -26,3 +26,10 @@ run bot:
 ```bash
 node index.js
 ```
+
+## docker
+
+```bash
+docker buildx build -t dc-bot .
+docker run -v ./config.json:/app/config.json dc-bot
+```
