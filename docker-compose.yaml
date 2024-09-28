@@ -1,0 +1,8 @@
+services:
+  dcbot:
+    image: ghcr.io/miikaoskari/dc-bot:latest
+    volumes:
+      - ./config.json:/app/config.json
+    container_name: dcbot
+    restart: unless-stopped
+
