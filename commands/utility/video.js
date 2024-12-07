@@ -6,7 +6,10 @@ const isValidUrl = (url) => {
     const redditRegex = /^https?:\/\/(www\.)?reddit\.com\/.+$/;
     const tiktokRegex = /^https?:\/\/(www\.)?tiktok\.com\/.+$/;
     const tiktokVmRegex = /^https?:\/\/(vm\.)?tiktok\.com\/.+$/;
-    return redditRegex.test(url) || tiktokRegex.test(url) || tiktokVmRegex.test(url);
+    const youtubeRegex = /^https?:\/\/(www\.)?youtube\.com\/.+$/;
+    const youtubeShortRegex = /^https?:\/\/youtu\.be\/.+$/;
+    const xRegex = /^https?:\/\/(www\.)?x\.com\/.+$/;
+    return redditRegex.test(url) || tiktokRegex.test(url) || tiktokVmRegex.test(url) || youtubeRegex.test(url) || youtubeShortRegex.test(url) || xRegex.test(url);
 };
 
 module.exports = {
