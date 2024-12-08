@@ -3,6 +3,11 @@ const { exec } = require('child_process');
 const fs = require('fs');
 
 const isValidUrl = (url) => {
+    try {
+        new URL(url);
+    } catch (e) {
+        return false;
+    }
     const redditRegex = /^https?:\/\/(www\.)?reddit\.com\/.+$/;
     const tiktokRegex = /^https?:\/\/(www\.)?tiktok\.com\/.+$/;
     const tiktokVmRegex = /^https?:\/\/(vm\.)?tiktok\.com\/.+$/;
@@ -34,7 +39,10 @@ module.exports = {
         await interaction.deferReply();
 
         // download video from link (shell execute yt-dlp)
-        exec(`yt-dlp -o ${outputFilePath} ${videoUrl}`, async (error, stdout, stderr) => {
+        // use --max-filesize to prevent downloads of over 50M
+        // discord allows max of 10M add 40M of approximation buffer
+        // produces *.part files that need to be cleaned up
+        exec(`yt-dlp -o ${outputFilePath} ${videoUrl} --max-filesize 50M`, async (error, stdout, stderr) => {
             try {
                 if (error) {
                     console.error(`Error downloading video: ${error.message}`);
@@ -56,12 +64,25 @@ module.exports = {
 
                 // Clean up the downloaded file
                 fs.unlinkSync(outputFilePath);
+
+                // Delete all *.part files
+                fs.readdirSync('.').forEach(file => {
+                    if (file.endsWith('.part')) {
+                        fs.unlinkSync(file);
+                    }
+                });
             } catch (err) {
                 console.error(`Unexpected error: ${err.message}`);
                 await interaction.followUp('An unexpected error occurred.');
                 if (fs.existsSync(outputFilePath)) {
                     fs.unlinkSync(outputFilePath);
                 }
+                // Delete all *.part files
+                fs.readdirSync('.').forEach(file => {
+                    if (file.endsWith('.part')) {
+                        fs.unlinkSync(file);
+                    }
+                });
             }
         });
     },
