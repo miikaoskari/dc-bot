@@ -14,7 +14,8 @@ const isValidUrl = (url) => {
     const youtubeRegex = /^https?:\/\/(www\.)?youtube\.com\/.+$/;
     const youtubeShortRegex = /^https?:\/\/youtu\.be\/.+$/;
     const xRegex = /^https?:\/\/(www\.)?x\.com\/.+$/;
-    return redditRegex.test(url) || tiktokRegex.test(url) || tiktokVmRegex.test(url) || youtubeRegex.test(url) || youtubeShortRegex.test(url) || xRegex.test(url);
+    const instagramRegex = /^https?:\/\/(www\.)?instagram\.com\/.+$/;
+    return redditRegex.test(url) || tiktokRegex.test(url) || tiktokVmRegex.test(url) || youtubeRegex.test(url) || youtubeShortRegex.test(url) || xRegex.test(url) || instagramRegex.test(url);
 };
 
 module.exports = {
@@ -31,7 +32,7 @@ module.exports = {
 
         // Validate the URL
         if (!isValidUrl(videoUrl)) {
-            await interaction.reply('only tiktok and reddit links are supported');
+            await interaction.reply('only tiktok, reddit, youtube, x and instagram links are supported');
             return;
         }
 
