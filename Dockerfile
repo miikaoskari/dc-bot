@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:edge
 RUN apk add --no-cache nodejs npm yt-dlp
 WORKDIR /app
 COPY . /app
