@@ -10,6 +10,8 @@ use serenity::all::CreateAttachment;
 use serenity::async_trait;
 use tokio::fs::File;
 use tokio::process::Command;
+use xxhash_rust::xxh3::xxh3_64;
+use std::path::Path;
 
 struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -60,7 +62,18 @@ async fn get_yt_dlp_filename(url: &str) -> Result<String, Error> {
     if !output.status.success() {
         return Err("yt-dlp failed to get filename".into());
     }
-    let filename = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    let raw_filename = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let hash = xxh3_64(raw_filename.as_bytes());
+    let ext = Path::new(&raw_filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let filename = if ext.is_empty() {
+        format!("{:x}", hash)
+    } else {
+        format!("{:x}.{}", hash, ext)
+    };
     Ok(filename)
 }
 
@@ -81,13 +94,15 @@ async fn video(ctx: Context<'_>, #[description = "video"] url: String) -> Result
 
     let filename: String = get_yt_dlp_filename(&url).await?;
 
+    println!("filename is {}", &filename);
+
     let output = Command::new("yt-dlp")
         .arg("--output")
         .arg(&filename)
         .arg(url.as_str())
         .arg("--max-filesize")
-        .arg("--force-overwrite")
         .arg("20M")
+        .arg("--force-overwrite")
         .output()
         .await
         .expect("failed to execute");
@@ -124,14 +139,14 @@ async fn video(ctx: Context<'_>, #[description = "video"] url: String) -> Result
 
     println!("file is good!");
 
-    let attachment = CreateAttachment::file(&file, "download.mp4").await?;
+    let attachment = CreateAttachment::file(&file, &filename).await?;
     ctx.send(poise::CreateReply::default()
             .content("")
             .attachment(attachment)
     ).await?;
 
     // remove file
-    let result = fs::remove_file("download.mp4");
+    let result = fs::remove_file(&filename);
     if let Err(e) = result {
         eprintln!("failed to remove file: {}", e);
     }
