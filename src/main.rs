@@ -1,17 +1,15 @@
+use std::fs;
 use serde::Deserialize;
 use serde::Serialize;
-use std::fs;
 use poise::serenity_prelude as serenity;
 use songbird::SerenityInit;
-
-// Event related imports to detect track creation failures.
 use songbird::events::{Event, EventContext, EventHandler as VoiceEventHandler, TrackEvent};
-
-// To turn user URLs into playable audio, we'll use yt-dlp.
 use songbird::input::YoutubeDl;
-
-// YtDl requests need an HTTP client to operate -- we'll create and store our own.
-use reqwest::Client as HttpClient;
+use reqwest::{Client as HttpClient, Url};
+use serenity::all::CreateAttachment;
+use serenity::async_trait;
+use tokio::fs::File;
+use tokio::process::Command;
 
 struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -24,7 +22,7 @@ struct Config {
 
 struct TrackErrorNotifier;
 
-#[serenity::async_trait]
+#[async_trait]
 impl VoiceEventHandler for TrackErrorNotifier {
     async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
         if let EventContext::Track(track_list) = ctx {
@@ -42,7 +40,6 @@ impl VoiceEventHandler for TrackErrorNotifier {
 }
 
 struct HttpKey;
-
 impl serenity::prelude::TypeMapKey for HttpKey {
     type Value = HttpClient;
 }
@@ -52,9 +49,93 @@ fn read_token() -> Config {
     serde_json::from_str(&config_data).expect("Invalid JSON in config file")
 }
 
+async fn get_yt_dlp_filename(url: &str) -> Result<String, Error> {
+    let output = Command::new("yt-dlp")
+        .arg("--print")
+        .arg("filename")
+        .arg("--no-warnings")
+        .arg(url)
+        .output()
+        .await?;
+    if !output.status.success() {
+        return Err("yt-dlp failed to get filename".into());
+    }
+    let filename = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(filename)
+}
+
 #[poise::command(slash_command, prefix_command)]
-async fn video(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.say("here is your video").await?;
+async fn video(ctx: Context<'_>, #[description = "video"] url: String) -> Result<(), Error> {
+    ctx.defer().await?;
+
+    match Url::parse(url.as_str()) {
+        Ok(url) => {
+            println!("url is valid {}", url.as_str());
+        }
+        Err(e) => {
+            eprintln!("url is invalid {}", e);
+            ctx.say("url is invalid").await?;
+            return Ok(());
+        }
+    }
+
+    let filename: String = get_yt_dlp_filename(&url).await?;
+
+    let output = Command::new("yt-dlp")
+        .arg("--output")
+        .arg(&filename)
+        .arg(url.as_str())
+        .arg("--max-filesize")
+        .arg("--force-overwrite")
+        .arg("20M")
+        .output()
+        .await
+        .expect("failed to execute");
+
+    if !output.status.success() {
+        eprintln!("yt-dlp failed with status: {}", output.status);
+        ctx.say("file too large :'-(").await?;
+        return Ok(());
+    };
+
+    let file = match File::open(&filename).await {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("failed to open file: {}", e);
+            ctx.say("file too large :'-(").await?;
+            return Ok(());
+        }
+    };
+
+    // get file size
+    let metadata = match file.metadata().await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            eprintln!("failed to get file metadata: {}", e);
+            return Ok(());
+        }
+    };
+
+    let file_size = metadata.len();
+    if file_size > 10 * 1024 * 1024 {
+        ctx.say("file is too large :'-(").await?;
+        return Ok(());
+    }
+
+    println!("file is good!");
+
+    let attachment = CreateAttachment::file(&file, "download.mp4").await?;
+    ctx.send(poise::CreateReply::default()
+            .content("")
+            .attachment(attachment)
+    ).await?;
+
+    // remove file
+    let result = fs::remove_file("download.mp4");
+    if let Err(e) = result {
+        eprintln!("failed to remove file: {}", e);
+    }
+
     Ok(())
 }
 
@@ -75,6 +156,7 @@ async fn play(ctx: Context<'_>, #[description = "url"] url: String) -> Result<()
         Some(guild) => guild.voice_states.get(&user_id).and_then(|vs| vs.channel_id),
         None => None,
     };
+
     let channel_id = match channel_id {
         Some(channel) => channel,
         None => {
@@ -101,7 +183,6 @@ async fn play(ctx: Context<'_>, #[description = "url"] url: String) -> Result<()
         Ok(handler_lock) => {
             let mut handler = handler_lock.lock().await;
             handler.add_global_event(TrackEvent::Error.into(), TrackErrorNotifier);
-
 
             let src = if do_search {
                 YoutubeDl::new_search(http_client, url)
